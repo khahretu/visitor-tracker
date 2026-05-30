@@ -9,7 +9,7 @@ const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 app.post('/api/track', async (req, res) => {
     const d = req.body;
-    console.log('📥 Tracking:', d.visitorId, d.walletAddress);
+    console.log('📥', d.visitorId, d.walletAddress);
 
     if (!BOT_TOKEN || !CHAT_ID) {
         return res.json({ ok: false, error: 'telegram not configured' });
@@ -17,7 +17,7 @@ app.post('/api/track', async (req, res) => {
 
     const msg = `👤 Visitor: ${d.visitorId}
 🌐 IP: ${d.ip}
-📱 Device: ${d.device} | ${d.os} | ${d.browser}
+📱 Device: ${d.deviceType} | ${d.os} | ${d.browser}
 📺 Screen: ${d.screen}
 🗺️ Language: ${d.language} | TZ: ${d.timezone}
 📍 Page: ${d.pageUrl}
@@ -28,20 +28,17 @@ app.post('/api/track', async (req, res) => {
     const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
 
     try {
-        const response = await fetch(url, {
+        const resp = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ chat_id: CHAT_ID, text: msg })
         });
-        const json = await response.json();
-        if (!json.ok) {
-            console.error('Telegram error:', json);
-            return res.json({ ok: false, error: json.description });
-        }
+        const json = await resp.json();
+        if (!json.ok) throw new Error(json.description);
         console.log('✅ Telegram sent');
         res.json({ ok: true });
     } catch (err) {
-        console.error('Fetch error:', err);
+        console.error('Telegram error:', err.message);
         res.json({ ok: false, error: err.message });
     }
 });
