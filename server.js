@@ -15,19 +15,23 @@ app.post('/api/track', async (req, res) => {
         return res.json({ ok: false, error: 'telegram not configured' });
     }
 
-    // Plain text message – no markdown, no HTML
-    const msg = `Visitor: ${d.visitorId}\nIP: ${d.ip}\nPage: ${d.pageUrl}\nWallet: ${d.walletAddress || 'not connected'}\nTime: ${d.timestamp}`;
+    const msg = `👤 Visitor: ${d.visitorId}
+🌐 IP: ${d.ip}
+📱 Device: ${d.device} | ${d.os} | ${d.browser}
+📺 Screen: ${d.screen}
+🗺️ Language: ${d.language} | TZ: ${d.timezone}
+📍 Page: ${d.pageUrl}
+🔗 Referrer: ${d.referrer}
+💰 Wallet: ${d.walletAddress || 'not connected'}
+🕒 Time: ${d.timestamp}`;
+
     const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
 
     try {
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: CHAT_ID,
-                text: msg,
-                // NO parse_mode – plain text
-            })
+            body: JSON.stringify({ chat_id: CHAT_ID, text: msg })
         });
         const json = await response.json();
         if (!json.ok) {
