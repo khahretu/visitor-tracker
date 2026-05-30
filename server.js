@@ -1,68 +1,44 @@
-// server.js – Deploy as a standalone Node.js server
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
-
+const cors = require('cors');
 const app = express();
+app.use(cors());
 app.use(express.json());
 
-// ========== CONFIGURATION ==========
-const TELEGRAM_BOT_TOKEN = 'YOUR_BOT_TOKEN';      // CHANGE
-const TELEGRAM_CHAT_ID = 'YOUR_CHAT_ID';          // CHANGE
-const LOG_FILE = path.join(__dirname, 'visitors.json');
-// ===================================
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-// Send message to Telegram
-async function sendToTelegram(text) {
-    if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-    try {
-        await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: 'HTML' })
-        });
-    } catch(e) { console.error('Telegram error', e); }
-}
-
-// Format tracking data into readable message
-function formatMessage(data) {
-    return `
-👤 <b>New Visitor</b>
-🆔 ID: ${data.visitorId}
-🌐 IP: ${data.ip}
-🖥️ Device: ${data.userAgent.substring(0, 80)}
-📍 Page: ${data.pageUrl}
-🔗 Referrer: ${data.referrer}
-💰 Wallet: ${data.walletAddress || '<i>not connected</i>'}
-🏷️ ExogatorID: ${data.exogatorId || 'none'}
-🕒 Time: ${data.timestamp}
-📱 Screen: ${data.screenSize}
-    `;
-}
-
-// Save to JSON file (for later analysis)
-function saveToFile(data) {
-    let existing = [];
-    if (fs.existsSync(LOG_FILE)) {
-        existing = JSON.parse(fs.readFileSync(LOG_FILE, 'utf8'));
-    }
-    existing.push(data);
-    fs.writeFileSync(LOG_FILE, JSON.stringify(existing, null, 2));
-}
-
-// API endpoint
 app.post('/api/track', async (req, res) => {
     const data = req.body;
-    console.log('Tracking:', data.visitorId, data.walletAddress);
-    saveToFile(data);
-    const message = formatMessage(data);
-    await sendToTelegram(message);
-    res.json({ status: 'ok' });
+    console.log('📥 Received:', data.visitorId, data.walletAddress);
+
+    if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+        console.error('❌ Telegram env missing');
+        return res.json({ status: 'error', reason: 'telegram_not_configured' });
+    }
+
+    const message = `👤 Visitor\nID: ${data.visitorId}\nIP: ${data.ip}\nPage: ${data.pageUrl}\nWallet: ${data.walletAddress || 'no'}`;
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+
+    try {
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: message })
+        });
+        const json = await resp.json();
+        if (!json.ok) {
+            console.error('❌ Telegram error:', json);
+            return res.json({ status: 'error', telegram: json });
+        }
+        console.log('✅ Telegram sent');
+        res.json({ status: 'ok', telegram: 'sent' });
+    } catch (err) {
+        console.error('❌ Fetch failed:', err);
+        res.json({ status: 'error', message: err.message });
+    }
 });
 
-// Health check
-app.get('/', (req, res) => res.send('Tracking API is running'));
+app.get('/', (req, res) => res.send('OK'));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
